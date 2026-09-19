@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Notre Famille — Déo Vumilia Buuma & Francine Sirire</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Great+Vibes&family=Poppins:wght@400;500;600;700&display=swap');
+:root{--navy:#071b33;--blue:#0e4275;--gold:#f5c34b;--cream:#fff9e8;--green:#16a05a}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,Arial,sans-serif;color:#172033;background:linear-gradient(135deg,#f5f8fc,#fff9e8)}
+button,input{font:inherit}
+#login{min-height:100vh;display:grid;place-items:center;padding:20px;background:linear-gradient(135deg,#06182eec,#0e4275dd),url("famille-banner.jpg") center/cover}
+.login-card{width:min(440px,100%);padding:32px 25px;text-align:center;color:white;background:#071b33e8;border:1px solid #f5c34b88;border-radius:28px;box-shadow:0 25px 70px #0008}
+.logo{font-size:48px}.login-card h1{font-family:Cinzel,serif;color:#ffe18a;font-size:25px}.login-card p{line-height:1.6}.login-card input{width:100%;padding:14px;border:0;border-radius:12px;margin:8px 0;outline:0}.primary{width:100%;border:0;padding:14px;border-radius:12px;background:linear-gradient(135deg,#f0b52c,#ffe18a);font-weight:800;color:#172033;cursor:pointer}
+#error{display:none;color:#ffb8b8;font-weight:700}
+#site{display:none}.hero{position:relative;background:#06182e}.hero img{display:block;width:100%;max-height:520px;object-fit:cover}.hero-caption{position:absolute;left:0;right:0;bottom:0;padding:30px 16px 22px;text-align:center;color:white;background:linear-gradient(transparent,#06182edb)}.hero-caption h1{margin:0;font-family:"Great Vibes",cursive;font-size:clamp(50px,10vw,90px);color:#ffe18a;text-shadow:0 3px 20px #000}
+.wrap{width:min(1050px,100%);margin:auto;padding:25px 15px 70px}.title{text-align:center;font-family:Cinzel,serif;color:var(--blue);font-size:clamp(22px,5vw,32px);margin:28px 0 18px}
+.member{background:#fff;border:1px solid #e6eaf0;border-radius:20px;margin:13px 0;padding:17px 17px 17px 105px;min-height:105px;position:relative;box-shadow:0 7px 24px #102d5214}.member-photo{position:absolute;left:16px;top:16px;width:72px;height:72px;border-radius:50%;object-fit:cover;border:3px solid var(--gold);background:#eef3f8;display:grid;place-items:center;font-size:28px}.member h3{margin:0 0 4px;font-family:Cinzel,serif;color:var(--blue);font-size:19px}.member b{color:#a66e00}.member p{line-height:1.55;margin:8px 0;color:#526071}.actions{display:flex;gap:8px;flex-wrap:wrap}.small{border:0;border-radius:10px;padding:9px 12px;background:#edf4fb;color:var(--blue);font-weight:700;cursor:pointer}.delete{background:#fff0f0;color:#a11}
+.box{background:white;border:1px solid #e6eaf0;border-radius:20px;padding:20px;margin:22px 0;box-shadow:0 7px 24px #102d5214}.box h2{font-family:Cinzel,serif;color:var(--blue)}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.gallery figure{margin:0;position:relative}.gallery img{width:100%;height:180px;object-fit:cover;border-radius:14px}.gallery button{position:absolute;right:5px;top:5px;border:0;border-radius:50%;width:32px;height:32px;background:#a11;color:#fff}.add{border:0;padding:12px 16px;border-radius:11px;background:var(--blue);color:#fff;font-weight:700;cursor:pointer}.wa{display:inline-block;background:var(--green);color:#fff;text-decoration:none;padding:13px 19px;border-radius:12px;font-weight:800}.help{font-size:13px;color:#667085}
+#logout{position:fixed;right:12px;bottom:12px;z-index:20;border:0;border-radius:12px;padding:11px 14px;background:#071b33;color:#fff}
+#welcome{display:none;position:fixed;z-index:50;inset:0;place-items:center;padding:20px;background:#06182edb;backdrop-filter:blur(7px)}.welcome{width:min(700px,100%);padding:38px 20px;text-align:center;border-radius:28px;background:linear-gradient(145deg,#0e4275,#071b33);border:2px solid #f5c34b88;color:#fff;animation:in .8s ease}.welcome small{font-family:Cinzel,serif;color:#ffe18a}.welcome h2{margin:5px 0;font:clamp(60px,14vw,105px)/1 "Great Vibes",cursive;color:#ffe18a;text-shadow:0 3px 25px #f5c34b66}.welcome p{line-height:1.7}.close{margin-top:10px;border:0;border-radius:12px;padding:13px 20px;background:#ffe18a;font-weight:800}
+@keyframes in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}@media(max-width:560px){.member{padding:92px 14px 15px;text-align:center}.member-photo{left:50%;transform:translateX(-50%)}.actions{justify-content:center}.member h3{font-size:17px}}
+</style>
+</head>
+<body>
+<section id="login">
+ <div class="login-card">
+  <div class="logo">👨‍👩‍👧‍👦</div>
+  <h1>Notre espace familial</h1>
+  <p>Famille Déo Vumilia Buuma & Francine Sirire</p>
+  <input id="password" type="password" placeholder="Mot de passe familial">
+  <button class="primary" id="enter">✨ Entrer dans la famille</button>
+  <p id="error">Mot de passe incorrect.</p>
+ </div>
+</section>
+
+<div id="welcome">
+ <div class="welcome">
+  <small>BIENVENUE DANS NOTRE ESPACE FAMILIAL</small>
+  <h2>Bienvenue !</h2>
+  <div style="font-size:35px">♥</div>
+  <p>Une famille, une histoire, une génération, un héritage.<br><strong>Que l'amour, le respect, la solidarité et l'unité nous accompagnent.</strong></p>
+  <button class="close" id="closeWelcome">Entrer ✨</button>
+ </div>
+</div>
+
+<main id="site">
+ <div class="hero">
+  <img src="famille-banner.jpg" alt="Famille">
+  <div class="hero-caption"><h1>Notre Famille</h1></div>
+ </div>
+ <div class="wrap">
+  <h2 class="title">👨‍👩‍👧‍👦 Les membres de la famille</h2>
+  <div id="members"></div>
+
+  <section class="box">
+   <h2>📸 Souvenirs de famille</h2>
+   <p>Ajoutez vos photos depuis votre téléphone.</p>
+   <input id="photosInput" type="file" accept="image/*" multiple>
+   <input id="caption" placeholder="Description de la photo (facultatif)" style="width:100%;padding:12px;border:1px solid #d9dfe8;border-radius:10px;margin:10px 0">
+   <button class="add" id="addPhotos">📷 Ajouter les photos</button>
+   <div id="gallery" class="gallery" style="margin-top:15px"></div>
+   <p class="help">Les photos ajoutées depuis ce navigateur sont conservées sur cet appareil.</p>
+  </section>
+
+  <section class="box" style="text-align:center">
+   <h2>💚 Groupe familial WhatsApp</h2>
+   <p>Le lien est modifiable facilement dans <b>script.js</b>.</p>
+   <a id="whatsapp" class="wa" href="#" target="_blank">💬 Ouvrir le groupe WhatsApp</a>
+  </section>
+ </div>
+</main>
+<button id="logout" style="display:none">🔒 Fermer</button>
+<script src="script.js"></script>
+</body>
+</html>
