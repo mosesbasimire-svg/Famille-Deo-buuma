@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<title>Ma Caisse</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f3f4f6;color:#111827}
+header{background:#111827;color:white;padding:22px 18px;border-radius:0 0 22px 22px}h1{margin:0 0 5px;font-size:27px}.sub{opacity:.75}
+main{padding:18px;max-width:650px;margin:auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{border:0;border-radius:18px;background:white;color:#111827;padding:18px;min-height:110px;text-align:left;box-shadow:0 3px 12px #00000010;font-size:17px}
+.card b{display:block;margin-top:12px;color:#111827;font-size:17px}.orange{border-left:6px solid #f97316}.red{border-left:6px solid #ef4444}.green{border-left:6px solid #16a34a}.blue{border-left:6px solid #2563eb}
+.section{background:white;padding:18px;border-radius:18px;margin-top:14px;box-shadow:0 3px 12px #00000010}.hidden{display:none}
+button{border:0;border-radius:12px;padding:12px 15px;background:#111827;color:white;font-size:15px;margin:4px;cursor:pointer}
+.secondary{background:#e5e7eb;color:#111827}input,select{width:100%;padding:13px;border:1px solid #d1d5db;border-radius:10px;margin:6px 0 12px;font-size:16px}
+.stat{font-size:24px;font-weight:bold}.op{padding:10px 0;border-bottom:1px solid #eee}.small{font-size:13px;color:#6b7280}
+.login{position:fixed;inset:0;background:#07142f;display:flex;align-items:flex-end;justify-content:center;padding:0;z-index:9999;overflow:auto}
+.loginbox{background:rgba(8,25,57,.96);color:white;width:min(520px,100%);padding:24px 22px 28px;border-radius:30px 30px 0 0;text-align:center;margin-top:48vh}
+.loginbrand{font-size:30px;font-weight:800;margin-bottom:5px}.loginbrand span{color:#facc15}.loginsub{color:#dbeafe;margin-bottom:18px}
+.loginbox h2{margin:0 0 8px;font-size:22px}.loginbox p{margin:0 0 14px;color:#dbeafe}
+.loginbox input{text-align:center;font-size:24px;letter-spacing:5px;background:white;color:#111827;border:0;padding:15px;border-radius:14px}
+.loginbox button{width:100%;background:#facc15;color:#07142f;font-weight:800;font-size:17px;padding:15px}
+.error{color:#fca5a5;min-height:22px;margin:5px 0}.cloudnote{font-size:12px;color:#bfdbfe;margin-top:10px}
+.status{padding:10px;border-radius:10px;background:#fff;margin:10px 0;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<div id="login" class="login"><div class="loginbox">
+<div class="loginbrand">💼 Ma <span>Caisse</span></div><div class="loginsub">Votre argent, votre contrôle</div>
+<h2>🔐 Accès sécurisé</h2><p>Entrez votre mot de passe pour accéder à votre espace.</p>
+<input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="Mot de passe">
+<div id="loginError" class="error"></div><button onclick="unlock()">🔓 Accéder</button>
+<div class="cloudnote">☁️ Les opérations peuvent être sauvegardées en ligne.</div>
+</div></div>
+<header><h1>📱 Ma Caisse</h1><div class="sub">Gestion de vos activités commerciales</div></header>
+<main>
+<div id="home"><div id="homeCloud" class="status">☁️ Vérification de la sauvegarde en ligne...</div>
+<div class="grid">
+<button class="card orange" onclick="openNet('Orange Money')">🟠<b>Orange Money</b></button>
+<button class="card red" onclick="openNet('Airtel Money')">🔴<b>Airtel Money</b></button>
+<button class="card green" onclick="openNet('M-Pesa')">🟢<b>M-Pesa</b></button>
+<button class="card blue" onclick="openNet('Afrimoney')">🔵<b>Afrimoney</b></button>
+<button class="card" onclick="openCash()">💵<b>Caisse</b></button>
+<button class="card" onclick="openReports()">📊<b>Rapports</b></button>
+<button class="card" onclick="openOther()">➕<b>Autres activités</b></button>
+<button class="card" onclick="openSettings()">⚙️<b>Paramètres</b></button>
+</div></div><div id="page" class="section hidden"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+'use strict';
+const APP_PASSWORD="20072007";
+const SUPABASE_URL="https://lgzgzavicxefuqbpzkcc.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_MbyLWL9_tvNuDwXZjcAZIA_E9H0J2q0";
+const STORAGE_KEY='macaisse_v1';
+let db;
+try { db=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{"operations":[],"others":[]}'); }
+catch(e){ db={operations:[],others:[]}; }
+if(!Array.isArray(db.operations)) db.operations=[];
+if(!Array.isArray(db.others)) db.others=[];
+let supabaseClient=null,currentUser=null,cloudReady=false;
+
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
+function money(n){return Number(n||0).toLocaleString('fr-FR')+' FC';}
+function updateCloud(message,ok=false){
+ const el=document.getElementById('homeCloud');
+ if(el){el.textContent=message;el.style.color=ok?'#166534':'#9a3412';}
+}
+async function connectCloud(){
+ try{
+  if(!window.supabase) throw new Error('La bibliothèque Supabase ne s’est pas chargée. Vérifiez Internet.');
+  if(!supabaseClient) supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+  let {data,error}=await supabaseClient.auth.getSession();
+  if(error) throw error;
+  currentUser=data.session?.user||null;
+  if(!currentUser){
+   const sign=await supabaseClient.auth.signInAnonymously();
+   if(sign.error) throw sign.error;
+   currentUser=sign.data.user;
+  }
+  if(!currentUser) throw new Error('Aucun utilisateur authentifié.');
+  await loadCloudData();
+  cloudReady=true;updateCloud('☁️ Connexion et lecture Supabase réussies.',true);
+  return {ok:true};
+ }catch(err){
+  cloudReady=false;updateCloud('⚠️ Cloud non prêt : '+(err.message||err),false);
+  console.error(err);return {ok:false,error:err};
+ }
+}
+async function loadCloudData(){
+ const [or,ar]=await Promise.all([
+  supabaseClient.from('operations').select('*').eq('user_id',currentUser.id),
+  supabaseClient.from('autres_activites').select('*').eq('user_id',currentUser.id)
+ ]);
+ if(or.error) throw new Error('Lecture operations : '+or.error.message);
+ if(ar.error) throw new Error('Lecture autres_activites : '+ar.error.message);
+ // Les lignes distantes sont ajoutées localement sans effacer les données existantes.
+ const signatures=new Set(db.operations.map(op=>[op.network,op.type,op.client||'',op.amount,op.commission||0,op.note||'',op.date||''].join('|')));
+ for(const r of (or.data||[])){
+  const op={network:r.reseau,type:r.type_operation,client:r.client||'',amount:Number(r.montant||0),commission:Number(r.commission||0),note:r.observation||'',date:r.created_at||new Date().toISOString()};
+  const sig=[op.network,op.type,op.client,op.amount,op.commission,op.note,op.date].join('|');
+  if(!signatures.has(sig)){db.operations.push(op);signatures.add(sig);}
+ }
+ const names=new Set(db.others);
+ for(const r of (ar.data||[])){if(r.nom&&!names.has(r.nom)){db.others.push(r.nom);names.add(r.nom);}}
+ save();
+}
+async function cloudAddOperation(op){
+ if(!cloudReady||!currentUser) throw new Error('Cloud non connecté. Ouvrez Paramètres et vérifiez la connexion.');
+ const {error}=await supabaseClient.from('operations').insert({
+  user_id:currentUser.id,reseau:op.network,type_operation:op.type,client:op.client||null,
+  montant:op.amount,commission:op.commission||0,observation:op.note||null,created_at:op.date
+ });
+ if(error) throw error;
+ updateCloud('✅ Opération enregistrée sur Supabase.',true);
+}
+async function cloudAddActivity(name){
+ if(!cloudReady||!currentUser) throw new Error('Cloud non connecté. Vérifiez la connexion dans Paramètres.');
+ const {error}=await supabaseClient.from('autres_activites').insert({user_id:currentUser.id,nom:name});
+ if(error) throw error;
+}
+async function unlock(){
+ if(document.getElementById('pin').value===APP_PASSWORD){
+  document.getElementById('login').style.display='none';document.getElementById('pin').value='';
+  await connectCloud();
+ }else document.getElementById('loginError').textContent='Mot de passe incorrect.';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&document.getElementById('login').style.display!=='none')unlock();});
+function home(){document.getElementById('home').classList.remove('hidden');document.getElementById('page').classList.add('hidden');}
+function show(html){document.getElementById('home').classList.add('hidden');const p=document.getElementById('page');p.classList.remove('hidden');p.innerHTML=html;}
+function openNet(net){
+ const ops=db.operations.filter(x=>x.network===net),com=ops.reduce((a,x)=>a+Number(x.commission||0),0);
+ show(`<button class="secondary" onclick="home()">← Accueil</button><h2>${net}</h2><p>Opérations : <b>${ops.length}</b> · Commissions : <b>${money(com)}</b></p><button onclick="newOp('${net}')">➕ Nouvelle opération</button><button class="secondary" onclick="listOps('${net}')">📋 Historique</button><div id="sub"></div>`);
+}
+function newOp(net){document.getElementById('sub').innerHTML=`<div class="section"><h3>Nouvelle opération</h3>
+<select id="type"><option>Dépôt</option><option>Retrait</option><option>Transfert</option></select>
+<input id="client" placeholder="Nom ou numéro du client"><input id="amount" type="number" min="1" placeholder="Montant en FC">
+<input id="commission" type="number" min="0" placeholder="Commission en FC"><input id="note" placeholder="Observation (facultatif)">
+<button onclick="addOp('${net}')">Enregistrer</button></div>`;}
+async function addOp(net){
+ const amount=Number(document.getElementById('amount').value||0),commission=Number(document.getElementById('commission').value||0);
+ if(amount<=0){alert('Veuillez saisir un montant supérieur à zéro.');return;}
+ const op={network:net,type:document.getElementById('type').value,client:document.getElementById('client').value.trim(),amount,commission,note:document.getElementById('note').value.trim(),date:new Date().toISOString()};
+ db.operations.push(op);save();openNet(net);
+ try{await cloudAddOperation(op);alert('Opération enregistrée sur le téléphone et dans le cloud.');}
+ catch(err){alert('Opération gardée sur le téléphone, MAIS pas sur Supabase : '+err.message);updateCloud('⚠️ Sauvegarde cloud échouée : '+err.message,false);}
+}
+function listOps(net){
+ const ops=db.operations.filter(x=>x.network===net).slice().reverse();
+ document.getElementById('sub').innerHTML='<h3>Historique</h3>'+(ops.length?ops.map(x=>`<div class="op"><b>${x.type}</b> — ${money(x.amount)}<br><span class="small">${x.client||'Client non précisé'} · Commission ${money(x.commission)} · ${new Date(x.date).toLocaleString('fr-FR')}</span></div>`).join(''):'<p>Aucune opération.</p>');
+}
+function openCash(){const solde=db.operations.reduce((a,x)=>a+(x.type==='Dépôt'?x.amount:x.type==='Retrait'?-x.amount:0),0);show(`<button class="secondary" onclick="home()">← Accueil</button><h2>💵 Caisse</h2><p class="stat">${money(solde)}</p><p>Solde indicatif basé sur les opérations enregistrées.</p>`);}
+function openReports(){const total=db.operations.reduce((a,x)=>a+x.amount,0),com=db.operations.reduce((a,x)=>a+Number(x.commission||0),0);show(`<button class="secondary" onclick="home()">← Accueil</button><h2>📊 Rapports</h2><div class="section"><p>Nombre d'opérations</p><div class="stat">${db.operations.length}</div></div><div class="section"><p>Volume total</p><div class="stat">${money(total)}</div></div><div class="section"><p>Commissions</p><div class="stat">${money(com)}</div></div>`);}
+async function openSettings(){
+ show(`<button class="secondary" onclick="home()">← Accueil</button><h2>⚙️ Paramètres</h2><div class="section"><h3>🔐 Sécurité</h3><p>Le mot de passe protège l'accès à l'application.</p><button onclick="lockApp()">🔒 Verrouiller maintenant</button></div><div class="section"><h3>☁️ Sauvegarde en ligne</h3><p id="cloudStatus">Vérification...</p><button onclick="retryCloud()">Réessayer la connexion</button><p class="small">Pour la sauvegarde cloud, ouvrez cette application depuis son adresse HTTPS (GitHub Pages), pas depuis un fichier local content://.</p></div>`);
+ const r=await connectCloud();const el=document.getElementById('cloudStatus');if(el)el.textContent=r.ok?'✅ Connexion Supabase réussie.':'❌ '+(r.error?.message||'Erreur inconnue');
+}
+async function retryCloud(){const r=await connectCloud();const el=document.getElementById('cloudStatus');if(el)el.textContent=r.ok?'✅ Connexion Supabase réussie.':'❌ '+(r.error?.message||'Erreur inconnue');}
+function lockApp(){document.getElementById('login').style.display='flex';document.getElementById('loginError').textContent='';home();}
+function openOther(){show(`<button class="secondary" onclick="home()">← Accueil</button><h2>➕ Autres activités</h2><input id="otherName" placeholder="Nom de l'activité"><button onclick="addOther()">Ajouter</button><div id="others">${db.others.map(x=>`<div class="op">📌 <b>${x}</b></div>`).join('')}</div>`);}
+async function addOther(){const n=document.getElementById('otherName').value.trim();if(!n)return;db.others.push(n);save();openOther();try{await cloudAddActivity(n);}catch(e){alert('Activité gardée sur le téléphone, mais non sauvegardée en ligne : '+e.message);}}
+</script>
+</body>
+</html>
