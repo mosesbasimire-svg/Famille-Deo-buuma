@@ -107,6 +107,25 @@ async function cloudAddActivity(name){
   });
   if(error) console.error(error);
 }
+
+async function cloudLoadDebts(){
+  if(!currentUser) return;
+  const {data,error}=await supabaseClient.from("dettes").select("*").eq("user_id",currentUser.id);
+  if(error) throw error;
+  const byId=new Map(db.debts.map(d=>[d.id,d]));
+  for(const r of (data||[])) byId.set(r.id,{id:r.id,network:r.reseau,client:r.client,amount:Number(r.montant||0),note:r.observation||"",date:r.created_at,paid:!!r.paid,paidDate:r.paid_at||null});
+  db.debts=Array.from(byId.values()); save();
+}
+async function cloudAddDebt(debt){
+  if(!currentUser) throw new Error("Aucune session Supabase.");
+  const {error}=await supabaseClient.from("dettes").insert({id:debt.id,user_id:currentUser.id,reseau:debt.network,client:debt.client,montant:debt.amount,observation:debt.note||null,created_at:debt.date,paid:false});
+  if(error) throw error;
+}
+async function cloudPayDebt(debt){
+  if(!currentUser) throw new Error("Aucune session Supabase.");
+  const {error}=await supabaseClient.from("dettes").update({paid:true,paid_at:debt.paidDate}).eq("id",debt.id).eq("user_id",currentUser.id);
+  if(error) throw error;
+}
 async function unlock(){
   const v=document.getElementById('pin').value;
   if(v===APP_PASSWORD){
@@ -173,17 +192,21 @@ function safeText(value){return String(value||'').replace(/[&<>"']/g,c=>({'&':'&
 function newDebt(net){
  document.getElementById('sub').innerHTML=`<div class="section"><h3>Nouvelle dette — ${net}</h3><label>Nom ou numéro du client</label><input id="debtClient" placeholder="Nom du client"><label>Montant dû (FC)</label><input id="debtAmount" type="number" min="1" placeholder="Montant"><label>Observation (facultatif)</label><input id="debtNote" placeholder="Détail de la dette"><button onclick="addDebt('${net}')">Enregistrer la dette</button><button class="secondary" onclick="openDebts('${net}')">Annuler</button></div>`;
 }
-function addDebt(net){
- const client=document.getElementById('debtClient').value.trim(),amount=Number(document.getElementById('debtAmount').value||0),note=document.getElementById('debtNote').value.trim();
- if(!client||amount<=0){alert('Indiquez le client et un montant supérieur à zéro.');return;}
- db.debts.push({id:'debt_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),network:net,client,amount,note,date:new Date().toISOString(),paid:false,paidDate:null});save();openDebts(net);
+async function addDebt(net){
+  const client=document.getElementById('debtClient').value.trim(),amount=Number(document.getElementById('debtAmount').value||0),note=document.getElementById('debtNote').value.trim();
+  if(!client||amount<=0){alert('Indiquez le client et un montant supérieur à zéro.');return;}
+  const debt={id:'debt_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),network:net,client,amount,note,date:new Date().toISOString(),paid:false,paidDate:null};
+  db.debts.push(debt);save();openDebts(net);
+  try{await cloudAddDebt(debt);alert('Dette enregistrée sur le téléphone et dans Supabase.');}
+  catch(e){alert('Dette conservée sur le téléphone, mais la sauvegarde en ligne a échoué : '+e.message);}
 }
-function payDebt(id){
- const debt=db.debts.find(d=>d.id===id);if(!debt||debt.paid)return;
- if(!confirm(`Confirmer que ${debt.client} a payé ${money(debt.amount)} ? La dette sera retirée de la liste des dettes en attente.`))return;
- debt.paid=true;debt.paidDate=new Date().toISOString();save();openDebts(debt.network);
+async function payDebt(id){
+  const debt=db.debts.find(d=>d.id===id);if(!debt||debt.paid)return;
+  if(!confirm(`Confirmer que ${debt.client} a payé ${money(debt.amount)} ? La dette sera retirée de la liste des dettes en attente.`))return;
+  debt.paid=true;debt.paidDate=new Date().toISOString();save();openDebts(debt.network);
+  try{await cloudPayDebt(debt);}
+  catch(e){alert('Paiement enregistré sur le téléphone, mais la mise à jour en ligne a échoué : '+e.message);}
 }
-
 function openCash(){
  let entries=db.operations.reduce((a,x)=>a+(x.type==='Dépôt'?x.amount:x.type==='Retrait'?-x.amount:0),0);
  show(`<button class="secondary" onclick="home()">← Accueil</button><h2>💵 Caisse</h2><p class="stat">${money(entries)}</p><p>Solde indicatif basé sur les opérations enregistrées.</p>`)
