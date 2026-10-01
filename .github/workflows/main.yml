@@ -12,4 +12,4 @@
     cordova create android-app com.mosesbasimire.macaisse MaCaisse
 
     rm -rf android-app/www/*
-    cp -R "$SOURCE_DIR"/. android-app/www/
+    cp -R "$SOURCE_DIR"/. android-app/www
