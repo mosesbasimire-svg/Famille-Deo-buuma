@@ -1,62 +1,15 @@
+- name: Preparer l'application
+  run: |
+    if [ -d "work_mca" ]; then
+      SOURCE_DIR="work_mca"
+    elif [ -f "index.html" ]; then
+      SOURCE_DIR="."
+    else
+      echo "Fichiers de Ma Caisse introuvables"
+      exit 1
+    fi
 
-name: Construire Ma Caisse APK
+    cordova create android-app com.mosesbasimire.macaisse MaCaisse
 
-on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Recuperer le projet
-        uses: actions/checkout@v4
-
-      - name: Installer Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Installer Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Installer Cordova
-        run: npm install -g cordova
-
-      - name: Preparer l'application
-        run: |
-          if [ -d "work_mca" ]; then
-            SOURCE_DIR="work_mca"
-          elif [ -f "index.html" ]; then
-            SOURCE_DIR="."
-          else
-            echo "Fichiers de Ma Caisse introuvables"
-            exit 1
-          fi
-
-          cordova create android-app com.mosesbasimire.macaisse MaCaisse
-          rm -rf android-app/www/*
-          cp -R "$SOURCE_DIR"/. android-app/www/
-
-      - name: Ajouter Android
-        working-directory: android-app
-        run: cordova platform add android@13
-
-      - name: Construire APK
-        working-directory: android-app
-        run: cordova build android
-
-      - name: Enregistrer APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: MaCaisse-APK
-          path: android-app/platforms/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          
+    rm -rf android-app/www/*
+    cp -R "$SOURCE_DIR"/. android-app/www/
