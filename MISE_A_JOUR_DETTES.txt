@@ -1,0 +1,10 @@
+MISE À JOUR MA CAISSE — DETTES
+
+1. Remplacez le fichier index.html par celui de cette archive.
+2. Dans Supabase > SQL Editor, exécutez le contenu complet de supabase_policies.sql
+   (il ajoute la table dettes et ses règles d'accès).
+3. Publiez les fichiers sur GitHub Pages et ouvrez le site via HTTPS.
+4. Les dettes créées ou réglées après cette mise à jour seront synchronisées avec Supabase.
+5. Les dettes déjà présentes uniquement sur l'ancien téléphone ne sont pas automatiquement transférées vers le cloud ; conservez une copie locale avant de remplacer l'application.
+
+Dans chaque réseau (Orange Money, Airtel Money, M-Pesa, Afrimoney), le bouton « Dettes » permet d'ajouter une dette, de consulter les dettes en attente et de marquer un paiement reçu. Les dettes réglées restent dans l'historique.
