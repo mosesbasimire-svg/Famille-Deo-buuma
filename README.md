@@ -1,14 +1,25 @@
-# Ma Caisse — Version 1
-Application Android de gestion pour Orange Money, Airtel Money, M-Pesa, Afrimoney, caisse, rapports et autres activités.
+# Ma Caisse — version complète Supabase
 
-Cette première version est une maquette fonctionnelle web/PWA prête à être testée sur Android. Elle n'effectue pas encore de transactions réelles auprès des opérateurs.
+Cette version conserve les activités : Orange Money, Airtel Money, M-Pesa, Afrimoney, Caisse, Rapports et Autres activités.
 
-## Utilisation
-Ouvrir `index.html` dans un navigateur. Les données sont conservées localement sur l'appareil dans cette version de démonstration.
+Fonctions incluses :
+- synchronisation Supabase des opérations, activités et dettes ;
+- suppression d'une opération dans l'historique ;
+- suppression d'une dette ;
+- annulation d'un paiement enregistré par erreur ;
+- signature manuscrite avec le doigt à la prise de dette ;
+- signature manuscrite avec le doigt au paiement ;
+- verrouillage lorsque l'application passe en arrière-plan ;
+- après 3 faux codes, demande d'accès à la caméra frontale et capture de sécurité ;
+- stockage des captures de sécurité dans Supabase Storage ;
+- photo de profil avec stockage Supabase ;
+- fonctionnement HTTPS/PWA.
 
-Pour la prochaine étape, on peut connecter Supabase afin de sauvegarder les données en ligne.
+## Mise en place
+1. Remplacer les fichiers du projet par ceux de ce dossier.
+2. Dans Supabase > SQL Editor > +, coller tout `supabase_policies.sql` puis Run.
+3. Vérifier que l'authentification anonyme est activée.
+4. Ouvrir le site depuis HTTPS (GitHub Pages) pour que la caméra fonctionne.
+5. Compiler ensuite avec le workflow GitHub existant.
 
-## Gestion des dettes
-Chaque réseau (Orange Money, Airtel Money, M-Pesa et Afrimoney) possède un bouton « Dettes ». Ajoutez le nom du client, le montant et une observation facultative. Lorsque le client paie, utilisez « Paiement reçu » : la dette quitte la liste des dettes en attente et reste visible dans « Dettes réglées » avec sa date de paiement.
-
-Les dettes de cette version sont conservées localement sur l'appareil (localStorage). Elles ne sont pas encore synchronisées avec Supabase.
+Le fichier `.github/workflows` n'est volontairement pas inclus : conserve ton workflow de compilation actuel s'il fonctionne déjà.
