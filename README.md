@@ -11,6 +11,7 @@ Fonctions incluses :
 - photo de profil personnelle enregistrée dans Supabase ;
 - après 3 codes incorrects, demande de caméra avant et enregistrement d'une capture de sécurité dans Supabase ;
 - autres activités, caisse et rapports ;
+- dépenses personnelles séparées, avec catégories, total, historique et suppression ;
 - fonctionnement local + synchronisation Supabase.
 
 ## Installation
@@ -20,3 +21,7 @@ Fonctions incluses :
 4. Ouvrez l'application via HTTPS (GitHub Pages ou l'application Android configurée pour utiliser cette page) pour que la caméra puisse demander son autorisation.
 
 La clé présente dans `index.html` est une clé publishable côté navigateur. Ne mettez jamais une clé `service_role` dans l'application.
+
+
+## Dépenses personnelles
+La rubrique `💳 Dépenses personnelles` est indépendante des opérations commerciales. Les dépenses sont enregistrées localement et dans Supabase, puis peuvent être supprimées depuis leur historique.

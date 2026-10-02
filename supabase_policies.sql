@@ -101,3 +101,22 @@ drop policy if exists "security_read_own" on storage.objects;
 create policy "security_read_own" on storage.objects for select to authenticated using (bucket_id='security-captures' and (storage.foldername(name))[1]=auth.uid()::text);
 drop policy if exists "security_delete_own" on storage.objects;
 create policy "security_delete_own" on storage.objects for delete to authenticated using (bucket_id='security-captures' and (storage.foldername(name))[1]=auth.uid()::text);
+
+-- 7) DEPENSES PERSONNELLES
+-- Les dépenses personnelles sont séparées des opérations commerciales.
+create table if not exists public.depenses_personnelles (
+ id text primary key,
+ user_id uuid not null references auth.users(id) on delete cascade,
+ categorie text not null,
+ montant numeric not null check (montant>0),
+ observation text,
+ created_at timestamptz not null default now()
+);
+alter table public.depenses_personnelles enable row level security;
+drop policy if exists "personal_expenses_select_own" on public.depenses_personnelles;
+create policy "personal_expenses_select_own" on public.depenses_personnelles for select to authenticated using (auth.uid()=user_id);
+drop policy if exists "personal_expenses_insert_own" on public.depenses_personnelles;
+create policy "personal_expenses_insert_own" on public.depenses_personnelles for insert to authenticated with check (auth.uid()=user_id);
+drop policy if exists "personal_expenses_delete_own" on public.depenses_personnelles;
+create policy "personal_expenses_delete_own" on public.depenses_personnelles for delete to authenticated using (auth.uid()=user_id);
+grant select,insert,delete on public.depenses_personnelles to authenticated;

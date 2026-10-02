@@ -18,7 +18,7 @@
 <div class="grid">
 <button class="card orange" onclick="openNet('Orange Money')">🟠<b>Orange Money</b></button><button class="card red" onclick="openNet('Airtel Money')">🔴<b>Airtel Money</b></button>
 <button class="card green" onclick="openNet('M-Pesa')">🟢<b>M-Pesa</b></button><button class="card blue" onclick="openNet('Afrimoney')">🔵<b>Afrimoney</b></button>
-<button class="card" onclick="openCash()">💵<b>Caisse</b></button><button class="card" onclick="openReports()">📊<b>Rapports</b></button>
+<button class="card" onclick="openCash()">💵<b>Caisse</b></button><button class="card" onclick="openPersonalExpenses()">💳<b>Dépenses personnelles</b></button><button class="card" onclick="openReports()">📊<b>Rapports</b></button>
 <button class="card" onclick="openOther()">➕<b>Autres activités</b></button><button class="card" onclick="openSettings()">⚙️<b>Paramètres</b></button>
 </div></div><div id="page" class="section hidden"></div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -27,17 +27,32 @@ const APP_PASSWORD="20072007";
 const SUPABASE_URL="https://lgzgzavicxefuqbpzkcc.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_MbyLWL9_tvNuDwXZjcAZIA_E9H0J2q0";
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
-let currentUser=null, db=JSON.parse(localStorage.getItem('macaisse_v2')||'{"operations":[],"others":[],"debts":[]}',safeJson);
-function safeJson(){return {operations:[],others:[],debts:[]}}
-if(!Array.isArray(db.operations))db.operations=[];if(!Array.isArray(db.others))db.others=[];if(!Array.isArray(db.debts))db.debts=[];
+let currentUser=null, db=JSON.parse(localStorage.getItem('macaisse_v2')||'{"operations":[],"others":[],"debts":[],"personalExpenses":[]}',safeJson);
+function safeJson(){return {operations:[],others:[],debts:[],personalExpenses:[]}}
+if(!Array.isArray(db.operations))db.operations=[];if(!Array.isArray(db.others))db.others=[];if(!Array.isArray(db.debts))db.debts=[];if(!Array.isArray(db.personalExpenses))db.personalExpenses=[];
 let failedAttempts=0,lockTimer=null,cameraStream=null,signaturePad=null,profileUrl=null;
 function save(){localStorage.setItem('macaisse_v2',JSON.stringify(db))}function money(n){return Number(n||0).toLocaleString('fr-FR')+' FC'}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function updateHomeCloud(r){let e=document.getElementById('homeCloud');if(e)e.textContent=r?.ok?'☁️ Sauvegarde en ligne : connectée':'☁️ Sauvegarde en ligne : non connectée'}
 async function connectCloud(){try{let s=await sb.auth.getSession();currentUser=s.data.session?.user||null;if(!currentUser){let a=await sb.auth.signInAnonymously();if(a.error)throw a.error;currentUser=a.data.user}updateHomeCloud({ok:true});await loadCloudData();await loadProfile();return {ok:true}}catch(e){console.error(e);updateHomeCloud({ok:false});return {ok:false,error:e}}}
-async function loadCloudData(){if(!currentUser)return;try{let o=await sb.from('operations').select('*').eq('user_id',currentUser.id);if(!o.error&&o.data){for(const r of o.data){const x={id:String(r.local_id||r.id),cloudId:r.id,network:r.reseau,type:r.type_operation,client:r.client||'',amount:Number(r.montant||0),commission:Number(r.commission||0),note:r.observation||'',date:r.created_at||new Date().toISOString()};if(!db.operations.some(a=>a.id===x.id))db.operations.push(x)}}let d=await sb.from('dettes').select('*').eq('user_id',currentUser.id);if(!d.error&&d.data){for(const r of d.data){const x={id:String(r.id),network:r.reseau,client:r.client,amount:Number(r.montant),note:r.observation||'',date:r.created_at,paid:!!r.paid,paidDate:r.paid_at||null,signatureDebt:r.signature_debt||null,paymentSignature:r.payment_signature||null};const i=db.debts.findIndex(a=>a.id===x.id);if(i<0)db.debts.push(x);else db.debts[i]=x}}save()}catch(e){console.warn('Chargement cloud:',e)}}
+async function loadCloudData(){if(!currentUser)return;try{let o=await sb.from('operations').select('*').eq('user_id',currentUser.id);if(!o.error&&o.data){for(const r of o.data){const x={id:String(r.local_id||r.id),cloudId:r.id,network:r.reseau,type:r.type_operation,client:r.client||'',amount:Number(r.montant||0),commission:Number(r.commission||0),note:r.observation||'',date:r.created_at||new Date().toISOString()};if(!db.operations.some(a=>a.id===x.id))db.operations.push(x)}}let d=await sb.from('dettes').select('*').eq('user_id',currentUser.id);if(!d.error&&d.data){for(const r of d.data){const x={id:String(r.id),network:r.reseau,client:r.client,amount:Number(r.montant),note:r.observation||'',date:r.created_at,paid:!!r.paid,paidDate:r.paid_at||null,signatureDebt:r.signature_debt||null,paymentSignature:r.payment_signature||null};const i=db.debts.findIndex(a=>a.id===x.id);if(i<0)db.debts.push(x);else db.debts[i]=x}}let p=await sb.from('depenses_personnelles').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false});
+if(!p.error&&p.data){for(const r of p.data){const x={id:String(r.id),category:r.categorie||'Autre',amount:Number(r.montant||0),note:r.observation||'',date:r.created_at||new Date().toISOString()};const i=db.personalExpenses.findIndex(a=>a.id===x.id);if(i<0)db.personalExpenses.push(x);else db.personalExpenses[i]=x}}
+save()}catch(e){console.warn('Chargement cloud:',e)}}
 async function cloudAddOperation(x){if(!currentUser)return;let {error}=await sb.from('operations').insert({local_id:x.id,user_id:currentUser.id,reseau:x.network,type_operation:x.type,client:x.client||null,montant:x.amount,commission:x.commission||0,observation:x.note||null,created_at:x.date});if(error)throw error}
 async function cloudDeleteOperation(x){if(!currentUser)return;let q=sb.from('operations').delete().eq('user_id',currentUser.id).eq('local_id',x.id);let {error}=await q;if(error)throw error}
+async function cloudAddPersonalExpense(x){
+ if(!currentUser)throw Error('Aucune session Supabase.');
+ let {error}=await sb.from('depenses_personnelles').insert({
+  id:x.id,user_id:currentUser.id,categorie:x.category,montant:x.amount,observation:x.note||null,created_at:x.date
+ });
+ if(error)throw error;
+}
+async function cloudDeletePersonalExpense(x){
+ if(!currentUser)throw Error('Aucune session Supabase.');
+ let {error}=await sb.from('depenses_personnelles').delete().eq('id',x.id).eq('user_id',currentUser.id);
+ if(error)throw error;
+}
+
 async function cloudAddActivity(name){if(!currentUser)return;let {error}=await sb.from('autres_activites').insert({user_id:currentUser.id,nom:name});if(error)throw error}
 async function cloudAddDebt(d){if(!currentUser)throw Error('Aucune session Supabase.');let {error}=await sb.from('dettes').insert({id:d.id,user_id:currentUser.id,reseau:d.network,client:d.client,montant:d.amount,observation:d.note||null,created_at:d.date,paid:false,signature_debt:d.signatureDebt||null});if(error)throw error}
 async function cloudPayDebt(d){if(!currentUser)throw Error('Aucune session Supabase.');let {error}=await sb.from('dettes').update({paid:true,paid_at:d.paidDate,payment_signature:d.paymentSignature||null}).eq('id',d.id).eq('user_id',currentUser.id);if(error)throw error}
@@ -69,7 +84,41 @@ function initSignature(id){let c=document.getElementById(id);let ctx=c.getContex
 function getSignature(id){let c=document.getElementById(id);if(!c)return null;let blank=document.createElement('canvas');blank.width=c.width;blank.height=c.height;return c.toDataURL('image/png')===blank.toDataURL('image/png')?null:c.toDataURL('image/png')}
 function clearSignature(id){let c=document.getElementById(id);if(c)c.getContext('2d').clearRect(0,0,c.width,c.height)}
 function openCash(){let e=db.operations.reduce((a,x)=>a+(x.type==='Dépôt'?x.amount:x.type==='Retrait'?-x.amount:0),0);show(`<button class="secondary" onclick="home()">← Accueil</button><h2>💵 Caisse</h2><p class="stat">${money(e)}</p><p>Solde indicatif basé sur les opérations.</p>`)}
-function openReports(){let total=db.operations.reduce((a,x)=>a+x.amount,0),com=db.operations.reduce((a,x)=>a+Number(x.commission||0),0);show(`<button class="secondary" onclick="home()">← Accueil</button><h2>📊 Rapports</h2><div class="section"><p>Nombre d'opérations</p><div class="stat">${db.operations.length}</div></div><div class="section"><p>Volume total</p><div class="stat">${money(total)}</div></div><div class="section"><p>Commissions</p><div class="stat">${money(com)}</div></div>`)}
+
+function openPersonalExpenses(){
+ let total=db.personalExpenses.reduce((a,x)=>a+Number(x.amount||0),0);
+ let rows=db.personalExpenses.slice().sort((a,b)=>new Date(b.date)-new Date(a.date));
+ show(`<button class="secondary" onclick="home()">← Accueil</button>
+ <h2>💳 Dépenses personnelles</h2>
+ <div class="section"><p>Total des dépenses</p><div class="stat">${money(total)}</div>
+ <button onclick="newPersonalExpense()">➕ Ajouter une dépense</button></div>
+ <div class="section"><h3>📋 Historique</h3><div id="personalExpenseList">
+ ${rows.length?rows.map(x=>`<div class="op"><b>${esc(x.category)}</b> — ${money(x.amount)}<br><span class="small">${esc(x.note||'Sans observation')} · ${new Date(x.date).toLocaleString('fr-FR')}</span><br><button class="danger" onclick="deletePersonalExpense('${x.id}')">🗑️ Supprimer</button></div>`).join(''):'<p>Aucune dépense personnelle enregistrée.</p>'}
+ </div></div>`);
+}
+function newPersonalExpense(){
+ document.getElementById('personalExpenseList').insertAdjacentHTML('beforebegin',
+ `<div class="section" id="personalExpenseForm"><h3>Nouvelle dépense personnelle</h3>
+ <select id="expenseCategory"><option>Alimentation</option><option>Transport</option><option>Logement</option><option>Communication</option><option>Santé</option><option>Éducation</option><option>Famille</option><option>Loisirs</option><option>Autre</option></select>
+ <input id="expenseAmount" type="number" min="1" placeholder="Montant en FC">
+ <input id="expenseNote" placeholder="Observation (facultatif)">
+ <button onclick="addPersonalExpense()">Enregistrer</button><button class="secondary" onclick="document.getElementById('personalExpenseForm')?.remove()">Annuler</button></div>`);
+}
+async function addPersonalExpense(){
+ let amount=Number(document.getElementById('expenseAmount').value||0);
+ if(!amount)return alert('Veuillez saisir un montant.');
+ let x={id:'pex_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),category:document.getElementById('expenseCategory').value,amount,note:document.getElementById('expenseNote').value.trim(),date:new Date().toISOString()};
+ db.personalExpenses.push(x);save();
+ try{await cloudAddPersonalExpense(x)}catch(e){console.warn(e);alert('Dépense conservée sur le téléphone, mais la sauvegarde en ligne a échoué.')}
+ openPersonalExpenses();
+}
+async function deletePersonalExpense(id){
+ let x=db.personalExpenses.find(a=>a.id===id);if(!x)return;
+ if(!confirm('Supprimer définitivement cette dépense personnelle ?'))return;
+ try{await cloudDeletePersonalExpense(x);db.personalExpenses=db.personalExpenses.filter(a=>a.id!==id);save();openPersonalExpenses()}
+ catch(e){alert('Suppression impossible dans Supabase : '+e.message)}
+}
+function openReports(){let total=db.operations.reduce((a,x)=>a+x.amount,0),com=db.operations.reduce((a,x)=>a+Number(x.commission||0),0),expenses=db.personalExpenses.reduce((a,x)=>a+Number(x.amount||0),0);show(`<button class="secondary" onclick="home()">← Accueil</button><h2>📊 Rapports</h2><div class="section"><p>Nombre d'opérations</p><div class="stat">${db.operations.length}</div></div><div class="section"><p>Volume total des opérations</p><div class="stat">${money(total)}</div></div><div class="section"><p>Commissions</p><div class="stat">${money(com)}</div></div><div class="section"><p>💳 Dépenses personnelles</p><div class="stat">${money(expenses)}</div></div><div class="section"><p>Commissions après dépenses personnelles</p><div class="stat">${money(com-expenses)}</div><p class="small">Les dépenses personnelles restent séparées des opérations commerciales.</p></div>`)}
 async function openSettings(){show(`<button class="secondary" onclick="home()">← Accueil</button><h2>⚙️ Paramètres</h2><div class="section"><h3>👤 Ma photo de profil</h3>${profileUrl?`<img class="avatar" src="${esc(profileUrl)}"><br>`:''}<input id="profileInput" type="file" accept="image/*"><button onclick="changeProfile()">📷 Enregistrer ma photo</button></div><div class="section"><h3>🔐 Sécurité</h3><p>Verrouillage automatique lorsque l'application passe en arrière-plan et après 5 minutes d'inactivité.</p><button onclick="lockApp()">🔒 Verrouiller maintenant</button></div><div class="section"><h3>☁️ Supabase</h3><p id="cloudStatus">Vérification...</p></div>`);let r=await connectCloud();let e=document.getElementById('cloudStatus');if(e)e.textContent=r.ok?'✅ Supabase connecté.':'⚠️ Supabase non connecté.'}
 async function changeProfile(){let f=document.getElementById('profileInput').files[0];if(!f)return alert('Choisissez une photo.');try{await saveProfilePhoto(f);alert('✅ Photo de profil enregistrée en ligne.')}catch(e){alert('Photo impossible : '+e.message)}}
 function openOther(){show(`<button class="secondary" onclick="home()">← Accueil</button><h2>➕ Autres activités</h2><input id="otherName" placeholder="Nom de l'activité"><button onclick="addOther()">Ajouter</button><div id="others">${db.others.map(x=>`<div class="op">📌 <b>${esc(x)}</b></div>`).join('')}</div>`)}
