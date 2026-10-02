@@ -1,25 +1,22 @@
-# Ma Caisse — version complète Supabase
-
-Cette version conserve les activités : Orange Money, Airtel Money, M-Pesa, Afrimoney, Caisse, Rapports et Autres activités.
+# Ma Caisse — version complète
 
 Fonctions incluses :
-- synchronisation Supabase des opérations, activités et dettes ;
-- suppression d'une opération dans l'historique ;
-- suppression d'une dette ;
-- annulation d'un paiement enregistré par erreur ;
-- signature manuscrite avec le doigt à la prise de dette ;
-- signature manuscrite avec le doigt au paiement ;
-- verrouillage lorsque l'application passe en arrière-plan ;
-- après 3 faux codes, demande d'accès à la caméra frontale et capture de sécurité ;
-- stockage des captures de sécurité dans Supabase Storage ;
-- photo de profil avec stockage Supabase ;
-- fonctionnement HTTPS/PWA.
+- code d'accès `20072007` ;
+- verrouillage automatique après passage en arrière-plan et verrouillage manuel ;
+- opérations Orange Money, Airtel Money, M-Pesa et Afrimoney ;
+- suppression d'une opération depuis l'historique, avec suppression Supabase ;
+- dettes et paiements ;
+- signature avec le doigt lors de l'enregistrement d'une dette et de son paiement ;
+- suppression d'un paiement/d'une dette réglée en cas d'erreur ;
+- photo de profil personnelle enregistrée dans Supabase ;
+- après 3 codes incorrects, demande de caméra avant et enregistrement d'une capture de sécurité dans Supabase ;
+- autres activités, caisse et rapports ;
+- fonctionnement local + synchronisation Supabase.
 
-## Mise en place
-1. Remplacer les fichiers du projet par ceux de ce dossier.
-2. Dans Supabase > SQL Editor > +, coller tout `supabase_policies.sql` puis Run.
-3. Vérifier que l'authentification anonyme est activée.
-4. Ouvrir le site depuis HTTPS (GitHub Pages) pour que la caméra fonctionne.
-5. Compiler ensuite avec le workflow GitHub existant.
+## Installation
+1. Remplacez les fichiers du projet GitHub par les fichiers de ce dossier, en gardant votre workflow Android existant si votre compilation fonctionne déjà.
+2. Dans Supabase > SQL Editor, exécutez `supabase_policies.sql`.
+3. Vérifiez que l'authentification anonyme est activée dans Supabase.
+4. Ouvrez l'application via HTTPS (GitHub Pages ou l'application Android configurée pour utiliser cette page) pour que la caméra puisse demander son autorisation.
 
-Le fichier `.github/workflows` n'est volontairement pas inclus : conserve ton workflow de compilation actuel s'il fonctionne déjà.
+La clé présente dans `index.html` est une clé publishable côté navigateur. Ne mettez jamais une clé `service_role` dans l'application.

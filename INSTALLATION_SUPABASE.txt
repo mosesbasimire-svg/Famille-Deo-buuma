@@ -1,6 +1,16 @@
-1. Supabase > SQL Editor > +.
-2. Copier tout le fichier supabase_policies.sql.
-3. Coller et cliquer sur Run.
-4. Vérifier Authentication > Providers > Anonymous est activé.
-5. Vérifier Storage : security-captures et profile-photos.
-6. Ensuite seulement remplacer les fichiers du dépôt GitHub et compiler.
+MA CAISSE — PACKAGE DE MISE À JOUR
+
+Contenu :
+- index.html : application Ma Caisse (version avec URL Supabase configurée)
+- manifest.json : configuration PWA
+- money-welcome.png : image d'accueil
+- README.md : notes du projet
+- supabase_policies.sql : règles RLS proposées pour les tables operations et autres_activites
+
+IMPORTANT :
+1. Conservez tous les fichiers ensemble dans le même dossier.
+2. Pour publier sur GitHub Pages, téléversez les fichiers du dossier à la racine du dépôt.
+3. Dans Supabase, vérifiez d'abord que les tables public.operations et public.autres_activites existent et possèdent les colonnes attendues par index.html, notamment user_id.
+4. N'exécutez supabase_policies.sql qu'après avoir confirmé que ces tables et colonnes existent. Le script ne crée pas les tables.
+5. L'application doit être ouverte depuis une adresse HTTPS pour utiliser l'authentification Supabase. Les opérations restent aussi enregistrées localement dans le navigateur.
+6. La clé sb_publishable est conçue pour être utilisée côté client, mais les règles RLS doivent être correctement configurées. Ne placez jamais une clé secrète/service_role dans index.html.

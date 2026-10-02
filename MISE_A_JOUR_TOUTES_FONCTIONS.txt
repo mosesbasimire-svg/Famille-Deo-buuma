@@ -1,0 +1,3 @@
+Toutes les modifications demandées sont rassemblées dans index.html et supabase_policies.sql.
+Ne remplacez pas votre workflow GitHub Actions actuel s'il compile déjà correctement l'application.
+Après avoir copié les fichiers, exécutez une seule fois supabase_policies.sql dans Supabase.
