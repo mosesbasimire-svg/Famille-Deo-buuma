@@ -31,9 +31,7 @@ create table if not exists public.dettes (
   observation text,
   created_at timestamptz not null default now(),
   paid boolean not null default false,
-  paid_at timestamptz,
-  signature text,
-  payment_signature text
+  paid_at timestamptz
 );
 
 alter table public.dettes enable row level security;
@@ -52,32 +50,3 @@ for update to authenticated using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
 grant select, insert, update on public.dettes to authenticated;
-
-
--- Si la table dettes existait déjà avant cette version, ajouter les signatures :
-alter table public.dettes add column if not exists signature text;
-alter table public.dettes add column if not exists payment_signature text;
-
-drop policy if exists "dettes_delete_own" on public.dettes;
-create policy "dettes_delete_own" on public.dettes
-for delete to authenticated using (auth.uid() = user_id);
-
-grant delete on public.dettes to authenticated;
-
-
--- Historique : identifiant local permettant de supprimer une opération précise
-alter table public.operations add column if not exists local_id text;
-alter table public.operations add column if not exists created_at timestamptz;
-
-create index if not exists operations_local_id_idx on public.operations(local_id);
-
-drop policy if exists "operations_delete_own" on public.operations;
-create policy "operations_delete_own" on public.operations
-for delete to authenticated using (auth.uid() = user_id);
-
-drop policy if exists "operations_update_own" on public.operations;
-create policy "operations_update_own" on public.operations
-for update to authenticated using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
-
-grant delete, update on public.operations to authenticated;

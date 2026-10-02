@@ -23,9 +23,11 @@ button{border:0;border-radius:12px;padding:12px 15px;background:#111827;color:wh
 .loginbox button{width:100%;background:#facc15;color:#07142f;font-weight:800;font-size:17px;padding:15px;border-radius:14px}
 .error{color:#fca5a5;min-height:22px;margin:5px 0}
 .cloudnote{font-size:12px;color:#bfdbfe;margin-top:10px}
-.sigpad{background:#fff;border:2px dashed #94a3b8;border-radius:14px;width:100%;height:180px;touch-action:none;display:block}
-.sig-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.security-photo{width:100%;max-width:240px;border-radius:14px;margin-top:8px;display:block}
+#cameraModal{position:fixed;inset:0;background:#000b;z-index:10000;display:none;align-items:center;justify-content:center;padding:18px}
+.cameraBox{background:white;color:#111827;width:min(430px,100%);border-radius:20px;padding:18px;text-align:center}
+.cameraBox video{width:100%;border-radius:14px;background:#111;aspect-ratio:3/4;object-fit:cover}
+.cameraBox .small{margin:8px 0}
+.captureThumb{width:82px;height:82px;object-fit:cover;border-radius:12px;margin:4px;border:1px solid #ddd}
 </style></head>
 <body>
 <div id="login" class="login">
@@ -38,7 +40,15 @@ button{border:0;border-radius:12px;padding:12px 15px;background:#111827;color:wh
     <div id="loginError" class="error"></div>
     <button onclick="unlock()">🔓 Accéder</button>
     <div class="cloudnote">☁️ Vos opérations peuvent être sauvegardées en ligne avec Supabase.</div>
-    <div id="securityCameraArea" class="hidden"><video id="securityVideo" autoplay playsinline style="width:100%;max-width:280px;border-radius:14px;margin-top:10px"></video><canvas id="securityCanvas" class="hidden"></canvas></div>
+  </div>
+</div>
+<div id="cameraModal">
+  <div class="cameraBox">
+    <h3>📸 Sécurité</h3>
+    <p>3 codes incorrects ont été saisis. Une capture peut être enregistrée.</p>
+    <video id="securityVideo" autoplay playsinline muted></video>
+    <div id="cameraStatus" class="small">Demande d'autorisation de la caméra…</div>
+    <button onclick="closeCameraModal()" class="secondary">Fermer</button>
   </div>
 </div>
 <header><h1>📱 Ma Caisse</h1><div class="sub">Gestion de vos activités commerciales</div></header>
@@ -61,16 +71,15 @@ button{border:0;border-radius:12px;padding:12px 15px;background:#111827;color:wh
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const APP_PASSWORD="20072007";
-const FAILED_KEY="macaisse_failed_attempts";
-const SECURITY_KEY="macaisse_security_photos";
-let failedAttempts=Number(localStorage.getItem(FAILED_KEY)||0);
-let securityStream=null;
 
 // Connexion Supabase — clé publishable (prévue pour être utilisée côté navigateur)
 const SUPABASE_URL="https://lgzgzavicxefuqbpzkcc.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_MbyLWL9_tvNuDwXZjcAZIA_E9H0J2q0";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 let currentUser = null;
+let wrongPinAttempts = 0;
+let securityStream = null;
+const SECURITY_KEY = 'macaisse_security_captures_v1';
 
 async function connectCloud(){
   try{
@@ -98,21 +107,14 @@ async function cloudAddOperation(op){
   if(!currentUser) return;
   const {error}=await supabaseClient.from("operations").insert({
     user_id:currentUser.id,
-    local_id:op.id,
     reseau:op.network,
     type_operation:op.type,
     client:op.client||null,
     montant:op.amount,
     commission:op.commission||0,
-    observation:op.note||null,
-    created_at:op.date
+    observation:op.note||null
   });
   if(error) console.error(error);
-}
-async function cloudDeleteOperation(op){
-  if(!currentUser || !op.id) return;
-  const {error}=await supabaseClient.from("operations").delete().eq("local_id",op.id).eq("user_id",currentUser.id);
-  if(error) throw error;
 }
 
 async function cloudAddActivity(name){
@@ -128,59 +130,89 @@ async function cloudLoadDebts(){
   const {data,error}=await supabaseClient.from("dettes").select("*").eq("user_id",currentUser.id);
   if(error) throw error;
   const byId=new Map(db.debts.map(d=>[d.id,d]));
-  for(const r of (data||[])) byId.set(r.id,{id:r.id,network:r.reseau,client:r.client,amount:Number(r.montant||0),note:r.observation||"",date:r.created_at,paid:!!r.paid,paidDate:r.paid_at||null,signature:r.signature||null,paymentSignature:r.payment_signature||null});
+  for(const r of (data||[])) byId.set(r.id,{id:r.id,network:r.reseau,client:r.client,amount:Number(r.montant||0),note:r.observation||"",date:r.created_at,paid:!!r.paid,paidDate:r.paid_at||null});
   db.debts=Array.from(byId.values()); save();
 }
 async function cloudAddDebt(debt){
   if(!currentUser) throw new Error("Aucune session Supabase.");
-  const {error}=await supabaseClient.from("dettes").insert({id:debt.id,user_id:currentUser.id,reseau:debt.network,client:debt.client,montant:debt.amount,observation:debt.note||null,created_at:debt.date,paid:false,signature:debt.signature||null});
+  const {error}=await supabaseClient.from("dettes").insert({id:debt.id,user_id:currentUser.id,reseau:debt.network,client:debt.client,montant:debt.amount,observation:debt.note||null,created_at:debt.date,paid:false});
   if(error) throw error;
 }
 async function cloudPayDebt(debt){
   if(!currentUser) throw new Error("Aucune session Supabase.");
-  const {error}=await supabaseClient.from("dettes").update({paid:true,paid_at:debt.paidDate,payment_signature:debt.paymentSignature||null}).eq("id",debt.id).eq("user_id",currentUser.id);
+  const {error}=await supabaseClient.from("dettes").update({paid:true,paid_at:debt.paidDate}).eq("id",debt.id).eq("user_id",currentUser.id);
   if(error) throw error;
 }
 async function unlock(){
   const v=document.getElementById('pin').value;
   if(v===APP_PASSWORD){
-    failedAttempts=0; localStorage.setItem(FAILED_KEY,'0');
+    wrongPinAttempts=0;
     document.getElementById('login').style.display='none';
     document.getElementById('pin').value='';
+    document.getElementById('loginError').textContent='';
     connectCloud();
   }else{
-    failedAttempts++; localStorage.setItem(FAILED_KEY,String(failedAttempts));
-    document.getElementById('loginError').textContent=`Mot de passe incorrect. Tentative ${failedAttempts}/3.`;
+    wrongPinAttempts++;
     document.getElementById('pin').value='';
-    if(failedAttempts>=3){
-      document.getElementById('loginError').textContent='⚠️ 3 tentatives incorrectes. Capture de sécurité…';
-      await captureSecurityPhoto();
-      failedAttempts=0; localStorage.setItem(FAILED_KEY,'0');
+    document.getElementById('loginError').textContent=`Mot de passe incorrect. Tentative ${wrongPinAttempts}/3.`;
+    if(wrongPinAttempts>=3){
+      wrongPinAttempts=0;
+      setTimeout(startSecurityCapture,120);
     }
   }
 }
-async function captureSecurityPhoto(){
+
+function getSecurityCaptures(){
+  try{return JSON.parse(localStorage.getItem(SECURITY_KEY)||'[]')}catch(e){return []}
+}
+function saveSecurityCapture(dataUrl){
+  const items=getSecurityCaptures();
+  items.unshift({id:'capture_'+Date.now(),date:new Date().toISOString(),image:dataUrl});
+  localStorage.setItem(SECURITY_KEY,JSON.stringify(items.slice(0,10)));
+}
+async function startSecurityCapture(){
+  const modal=document.getElementById('cameraModal');
+  const video=document.getElementById('securityVideo');
+  const status=document.getElementById('cameraStatus');
+  modal.style.display='flex';
+  status.textContent='Demande d’autorisation de la caméra…';
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    status.textContent='Caméra indisponible. Ouvre Ma Caisse depuis HTTPS (GitHub Pages).';
+    return;
+  }
   try{
-    if(!navigator.mediaDevices?.getUserMedia) throw new Error('Caméra indisponible. Utilisez HTTPS.');
-    const area=document.getElementById('securityCameraArea'),video=document.getElementById('securityVideo'),canvas=document.getElementById('securityCanvas');
-    area.classList.remove('hidden');
     securityStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
     video.srcObject=securityStream;
-    await new Promise(resolve=>{ if(video.readyState>=2) resolve(); else video.onloadedmetadata=resolve; });
-    await new Promise(r=>setTimeout(r,600));
-    canvas.width=video.videoWidth||640; canvas.height=video.videoHeight||480;
+    status.textContent='Caméra activée. Capture en cours…';
+    await new Promise(r=>setTimeout(r,900));
+    const canvas=document.createElement('canvas');
+    const w=video.videoWidth||480, h=video.videoHeight||640;
+    const scale=Math.min(1,720/w);
+    canvas.width=Math.round(w*scale); canvas.height=Math.round(h*scale);
     canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
-    const photo={date:new Date().toISOString(),image:canvas.toDataURL('image/jpeg',0.82)};
-    const photos=JSON.parse(localStorage.getItem(SECURITY_KEY)||'[]'); photos.push(photo); localStorage.setItem(SECURITY_KEY,JSON.stringify(photos.slice(-20)));
-    if(securityStream){securityStream.getTracks().forEach(t=>t.stop());securityStream=null;}
-    area.classList.add('hidden');
+    const dataUrl=canvas.toDataURL('image/jpeg',0.72);
+    saveSecurityCapture(dataUrl);
+    status.textContent='✅ Capture enregistrée dans Ma Caisse.';
   }catch(e){
-    console.warn('Capture sécurité:',e); if(securityStream){securityStream.getTracks().forEach(t=>t.stop());securityStream=null;}
-    document.getElementById('securityCameraArea')?.classList.add('hidden');
-    document.getElementById('loginError').textContent='3 essais détectés, mais la caméra n’a pas pu faire la capture.';
+    console.error(e);
+    status.textContent='⚠️ Autorisation caméra refusée ou caméra indisponible.';
+  }finally{
+    setTimeout(closeCameraModal,1800);
   }
 }
-
+function closeCameraModal(){
+  if(securityStream){securityStream.getTracks().forEach(t=>t.stop());securityStream=null;}
+  const v=document.getElementById('securityVideo'); if(v) v.srcObject=null;
+  const m=document.getElementById('cameraModal'); if(m) m.style.display='none';
+}
+function securityGallery(){
+  const items=getSecurityCaptures();
+  if(!items.length) return '<p class="small">Aucune capture enregistrée.</p>';
+  return items.map((x,i)=>`<div style="display:inline-block;text-align:center"><img class="captureThumb" src="${x.image}" alt="Capture de sécurité ${i+1}"><div class="small">${new Date(x.date).toLocaleString('fr-FR')}</div></div>`).join('');
+}
+function clearSecurityCaptures(){
+  if(confirm('Supprimer toutes les captures de sécurité ?')){localStorage.removeItem(SECURITY_KEY);openSettings();}
+}
 document.addEventListener('keydown',e=>{if(e.key==='Enter' && document.getElementById('login').style.display!=='none') unlock();});
 
 const KEY='macaisse_v1';
@@ -213,7 +245,7 @@ function newOp(net){
 function addOp(net){
  let amount=Number(document.getElementById('amount').value||0), commission=Number(document.getElementById('commission').value||0);
  if(!amount){alert('Veuillez saisir un montant.');return}
- const op={id:'op_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),network:net,type:document.getElementById('type').value,client:document.getElementById('client').value,amount,commission,note:document.getElementById('note').value,date:new Date().toISOString()};
+ const op={network:net,type:document.getElementById('type').value,client:document.getElementById('client').value,amount,commission,note:document.getElementById('note').value,date:new Date().toISOString()};
  db.operations.push(op);
  save();
  cloudAddOperation(op);
@@ -221,17 +253,7 @@ function addOp(net){
 }
 function listOps(net){
  let ops=db.operations.filter(x=>x.network===net).slice().reverse();
- document.getElementById('sub').innerHTML='<h3>Historique</h3><p class="small">Vous pouvez supprimer uniquement les opérations enregistrées par erreur.</p>'+(ops.length?ops.map(x=>`<div class="op"><b>${safeText(x.type)}</b> — ${money(x.amount)}<br><span class="small">${safeText(x.client||'Client non précisé')} · Commission ${money(x.commission)} · ${new Date(x.date).toLocaleString('fr-FR')}</span><br><button class="secondary" onclick="deleteOperation('${x.id}')">🗑️ Supprimer</button></div>`).join(''):'<p>Aucune opération.</p>')
-}
-async function deleteOperation(id){
- const op=db.operations.find(x=>x.id===id);
- if(!op)return;
- if(!confirm(`Supprimer cette opération : ${op.type} — ${money(op.amount)} ?`))return;
- db.operations=db.operations.filter(x=>x.id!==id);save();listOps(op.network);
- if(currentUser && op.id){
-   try{await cloudDeleteOperation(op);}
-   catch(e){alert('Opération supprimée du téléphone, mais la suppression en ligne a échoué : '+e.message);}
- }
+ document.getElementById('sub').innerHTML='<h3>Historique</h3>'+(ops.length?ops.map(x=>`<div class="op"><b>${x.type}</b> — ${money(x.amount)}<br><span class="small">${x.client||'Client non précisé'} · Commission ${money(x.commission)} · ${new Date(x.date).toLocaleString('fr-FR')}</span></div>`).join(''):'<p>Aucune opération.</p>')
 }
 function openDebts(net){
  const debts=db.debts.filter(d=>d.network===net&&!d.paid);
@@ -239,57 +261,28 @@ function openDebts(net){
  const total=debts.reduce((a,d)=>a+Number(d.amount||0),0);
  document.getElementById('sub').innerHTML=`<div class="section"><h3>🧾 Dettes — ${net}</h3><p>Montant restant : <b>${money(total)}</b></p>
  <button onclick="newDebt('${net}')">➕ Ajouter une dette</button>
- <h4>Dettes en attente</h4>${debts.length?debts.map(d=>`<div class="op"><b>${safeText(d.client)}</b> — ${money(d.amount)}<br><span class="small">${safeText(d.note||'Sans observation')} · ${new Date(d.date).toLocaleDateString('fr-FR')}</span><br><button onclick="payDebt('${d.id}')">✅ Paiement reçu</button><button class="secondary" onclick="deleteDebt('${d.id}')">🗑️ Supprimer</button></div>`).join(''):'<p>Aucune dette en attente.</p>'}
- <h4>Dettes réglées</h4>${paid.length?paid.map(d=>`<div class="op"><b>${safeText(d.client)}</b> — ${money(d.amount)}<br><span class="small">Payée le ${new Date(d.paidDate).toLocaleDateString('fr-FR')}</span><br><button class="secondary" onclick="deletePaidDebt('${d.id}')">🗑️ Supprimer le paiement</button></div>`).join(''):'<p>Aucun paiement enregistré.</p>'}</div>`;
+ <h4>Dettes en attente</h4>${debts.length?debts.map(d=>`<div class="op"><b>${safeText(d.client)}</b> — ${money(d.amount)}<br><span class="small">${safeText(d.note||'Sans observation')} · ${new Date(d.date).toLocaleDateString('fr-FR')}</span><br><button onclick="payDebt('${d.id}')">✅ Paiement reçu</button></div>`).join(''):'<p>Aucune dette en attente.</p>'}
+ <h4>Dettes réglées</h4>${paid.length?paid.map(d=>`<div class="op"><b>${safeText(d.client)}</b> — ${money(d.amount)}<br><span class="small">Payée le ${new Date(d.paidDate).toLocaleDateString('fr-FR')}</span></div>`).join(''):'<p>Aucun paiement enregistré.</p>'}</div>`;
 }
 function safeText(value){return String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-let activeSignatureCallback=null;
-function signaturePad(title,callback){
-  activeSignatureCallback=callback;
-  document.getElementById('sub').innerHTML=`<div class="section"><h3>✍️ ${safeText(title)}</h3><p class="small">Signez avec votre doigt directement sur l’écran.</p><canvas id="signaturePad" class="sigpad"></canvas><div class="sig-actions"><button class="secondary" onclick="clearSignature()">Effacer</button><button onclick="saveSignature()">Valider la signature</button></div><button class="secondary" onclick="activeSignatureCallback=null;openDebts('${window.currentDebtNet||''}')">Annuler</button></div>`;
-  const c=document.getElementById('signaturePad'),ctx=c.getContext('2d');
-  const rect=()=>c.getBoundingClientRect();
-  function resize(){const r=rect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;ctx.setTransform(d,0,0,d,0,0);ctx.lineWidth=2.5;ctx.lineCap='round';ctx.lineJoin='round';}
-  resize(); window.addEventListener('resize',resize,{once:true});
-  let drawing=false;
-  const pos=e=>{const r=rect();const p=e.touches?e.touches[0]:e;return{x:p.clientX-r.left,y:p.clientY-r.top}};
-  const down=e=>{e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)};
-  const move=e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()};
-  const up=()=>{drawing=false};
-  c.addEventListener('mousedown',down);c.addEventListener('mousemove',move);window.addEventListener('mouseup',up);c.addEventListener('touchstart',down,{passive:false});c.addEventListener('touchmove',move,{passive:false});c.addEventListener('touchend',up);
-}
-function clearSignature(){const c=document.getElementById('signaturePad');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height)}
-function saveSignature(){const c=document.getElementById('signaturePad');if(!c||!activeSignatureCallback)return;const blank=document.createElement('canvas');blank.width=c.width;blank.height=c.height;if(c.toDataURL()===blank.toDataURL()){alert('Veuillez signer avant de valider.');return;}const data=c.toDataURL('image/png');const cb=activeSignatureCallback;activeSignatureCallback=null;cb(data)}
 function newDebt(net){
- window.currentDebtNet=net;
- document.getElementById('sub').innerHTML=`<div class="section"><h3>Nouvelle dette — ${safeText(net)}</h3><label>Nom ou numéro du client</label><input id="debtClient" placeholder="Nom du client"><label>Montant dû (FC)</label><input id="debtAmount" type="number" min="1" placeholder="Montant"><label>Observation (facultatif)</label><input id="debtNote" placeholder="Détail de la dette"><button onclick="startDebtSignature('${safeText(net)}')">✍️ Signer et enregistrer</button><button class="secondary" onclick="openDebts('${safeText(net)}')">Annuler</button></div>`;
+ document.getElementById('sub').innerHTML=`<div class="section"><h3>Nouvelle dette — ${net}</h3><label>Nom ou numéro du client</label><input id="debtClient" placeholder="Nom du client"><label>Montant dû (FC)</label><input id="debtAmount" type="number" min="1" placeholder="Montant"><label>Observation (facultatif)</label><input id="debtNote" placeholder="Détail de la dette"><button onclick="addDebt('${net}')">Enregistrer la dette</button><button class="secondary" onclick="openDebts('${net}')">Annuler</button></div>`;
 }
-function startDebtSignature(net){
- const client=document.getElementById('debtClient').value.trim(),amount=Number(document.getElementById('debtAmount').value||0),note=document.getElementById('debtNote').value.trim();
- if(!client||amount<=0){alert('Indiquez le client et un montant supérieur à zéro.');return;}
- signaturePad('Signature pour la dette',async sig=>{
-   const debt={id:'debt_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),network:net,client,amount,note,date:new Date().toISOString(),paid:false,paidDate:null,signature:sig,paymentSignature:null};
-   db.debts.push(debt);save();openDebts(net);
-   try{await cloudAddDebt(debt);alert('Dette signée et enregistrée.');}catch(e){alert('Dette enregistrée sur le téléphone, mais la sauvegarde en ligne a échoué : '+e.message);}
- });
+async function addDebt(net){
+  const client=document.getElementById('debtClient').value.trim(),amount=Number(document.getElementById('debtAmount').value||0),note=document.getElementById('debtNote').value.trim();
+  if(!client||amount<=0){alert('Indiquez le client et un montant supérieur à zéro.');return;}
+  const debt={id:'debt_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),network:net,client,amount,note,date:new Date().toISOString(),paid:false,paidDate:null};
+  db.debts.push(debt);save();openDebts(net);
+  try{await cloudAddDebt(debt);alert('Dette enregistrée sur le téléphone et dans Supabase.');}
+  catch(e){alert('Dette conservée sur le téléphone, mais la sauvegarde en ligne a échoué : '+e.message);}
 }
 async function payDebt(id){
- const debt=db.debts.find(d=>d.id===id);if(!debt||debt.paid)return;
- window.currentDebtNet=debt.network;
- signaturePad(`Signature pour le paiement de ${debt.client}`,async sig=>{
-   if(!confirm(`Confirmer le paiement de ${money(debt.amount)} par ${debt.client} ?`)){openDebts(debt.network);return;}
-   debt.paid=true;debt.paidDate=new Date().toISOString();debt.paymentSignature=sig;save();openDebts(debt.network);
-   try{await cloudPayDebt(debt);alert('Paiement signé et enregistré.');}catch(e){alert('Paiement enregistré sur le téléphone, mais la mise à jour en ligne a échoué : '+e.message);}
- });
+  const debt=db.debts.find(d=>d.id===id);if(!debt||debt.paid)return;
+  if(!confirm(`Confirmer que ${debt.client} a payé ${money(debt.amount)} ? La dette sera retirée de la liste des dettes en attente.`))return;
+  debt.paid=true;debt.paidDate=new Date().toISOString();save();openDebts(debt.network);
+  try{await cloudPayDebt(debt);}
+  catch(e){alert('Paiement enregistré sur le téléphone, mais la mise à jour en ligne a échoué : '+e.message);}
 }
-function deleteDebt(id){
- const debt=db.debts.find(d=>d.id===id);if(!debt)return;
- if(!confirm(`Supprimer la dette de ${debt.client} (${money(debt.amount)}) ?`))return;
- db.debts=db.debts.filter(d=>d.id!==id);save();openDebts(debt.network);
- if(currentUser) supabaseClient.from('dettes').delete().eq('id',id).eq('user_id',currentUser.id).then(({error})=>{if(error)alert('Suppression locale effectuée, mais Supabase n’a pas pu supprimer la dette : '+error.message);});
-}
-function deletePaidDebt(id){deleteDebt(id)}
-
 function openCash(){
  let entries=db.operations.reduce((a,x)=>a+(x.type==='Dépôt'?x.amount:x.type==='Retrait'?-x.amount:0),0);
  show(`<button class="secondary" onclick="home()">← Accueil</button><h2>💵 Caisse</h2><p class="stat">${money(entries)}</p><p>Solde indicatif basé sur les opérations enregistrées.</p>`)
@@ -303,7 +296,11 @@ function openReports(){
 }
 async function openSettings(){
  show(`<button class="secondary" onclick="home()">← Accueil</button><h2>⚙️ Paramètres</h2>
- <div class="section"><h3>🔐 Sécurité</h3><p>Le mot de passe protège l'accès à l'application.</p><button onclick="lockApp()">🔒 Verrouiller maintenant</button><h4>📸 Captures après 3 faux codes</h4><div id="securityPhotos">Chargement…</div></div>
+ <div class="section"><h3>🔐 Sécurité</h3><p>Le mot de passe protège l'accès à l'application.</p>
+ <button onclick="lockApp()">🔒 Verrouiller maintenant</button>
+ <h4>📸 Captures après 3 faux codes</h4>
+ <div>${securityGallery()}</div>
+ <button class="secondary" onclick="clearSecurityCaptures()">🗑️ Supprimer les captures</button></div>
  <div class="section"><h3>☁️ Sauvegarde en ligne</h3><p id="cloudStatus">Vérification de la connexion...</p>
  <p class="small">Pour que l'authentification Supabase fonctionne de façon fiable, l'application doit être ouverte depuis une adresse HTTPS (par exemple GitHub Pages), et non depuis un fichier local « content:// ».</p></div>`);
  const result=await connectCloud();
@@ -312,9 +309,7 @@ async function openSettings(){
    if(result.ok) el.textContent="✅ Supabase est connecté.";
    else el.textContent="⚠️ Connexion Supabase non établie : "+(result.error?.message || "erreur inconnue");
  }
- renderSecurityPhotos();
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden && document.getElementById('login').style.display==='none') lockApp();});
 function lockApp(){
  document.getElementById('login').style.display='flex';
  document.getElementById('loginError').textContent='';
@@ -328,7 +323,3 @@ function openOther(){
 function addOther(){let n=document.getElementById('otherName').value.trim();if(!n)return;db.others.push(n);save();cloudAddActivity(n);openOther()}
 </script>
 </body></html>
-<script>
-function renderSecurityPhotos(){const el=document.getElementById('securityPhotos');if(!el)return;const photos=JSON.parse(localStorage.getItem(SECURITY_KEY)||'[]').slice().reverse();el.innerHTML=photos.length?photos.map((p,i)=>`<div class="op"><img class="security-photo" src="${p.image}" alt="Capture de sécurité"><div class="small">${new Date(p.date).toLocaleString('fr-FR')}</div><button class="secondary" onclick="deleteSecurityPhoto(${photos.length-1-i})">🗑️ Supprimer</button></div>`).join(''):'<p class="small">Aucune capture.</p>'}
-function deleteSecurityPhoto(i){const photos=JSON.parse(localStorage.getItem(SECURITY_KEY)||'[]');photos.splice(i,1);localStorage.setItem(SECURITY_KEY,JSON.stringify(photos));renderSecurityPhotos()}
-</script>
